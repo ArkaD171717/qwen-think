@@ -1,8 +1,8 @@
-# qwen-think
+# qwen3-think
 
-**The Thinking Session Manager for Qwen3.6** — SDK + Router + Bug Fixes
+**The Thinking Session Manager for Qwen3.6** (or any Qwen3+ model that uses enable_thinking) — SDK + Router + Bug Fixes
 
-The canonical Python library for managing Qwen3.6's thinking state across sessions, backends, and frameworks.
+Python library for managing Qwen3.6's thinking state across sessions, backends, and frameworks.
 
 **[Colab Notebook](../qwen_think_colab.ipynb)** — end-to-end test harness (unit tests + live GPU tests)
 
