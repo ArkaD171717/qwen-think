@@ -1,10 +1,11 @@
 """Thinking session manager for Qwen3.6: backend normalization,
-atomic sampling swap, and 128K context budget guard."""
+sampling parameter swap, and 128K context budget guard."""
 
 from .backends import (
     BaseBackend,
     DashScopeBackend,
     LlamaCppBackend,
+    OpenAIBackend,
     SGLangBackend,
     VLLMBackend,
     detect_backend,
@@ -24,35 +25,29 @@ from .types import (
     RouterDecision,
     SamplingConfig,
     ThinkingMode,
-    ThinkingState,
 )
 
 __version__ = "0.1.0"
 
 __all__ = [
-    # Session (main entry point)
     "ThinkingSession",
-    # Backends
     "BaseBackend",
     "VLLMBackend",
     "SGLangBackend",
+    "OpenAIBackend",
     "DashScopeBackend",
     "LlamaCppBackend",
     "get_backend",
     "detect_backend",
-    # Budget
     "BudgetManager",
     "BudgetStatus",
     "estimate_tokens",
-    # Router
     "ComplexityRouter",
     "RuleBasedClassifier",
     "LLMClassifier",
-    # Sampling
     "SamplingManager",
     "THINKING_SAMPLING",
     "NON_THINKING_SAMPLING",
-    # Types
     "Backend",
     "BudgetAction",
     "Complexity",
@@ -60,5 +55,4 @@ __all__ = [
     "RouterDecision",
     "SamplingConfig",
     "ThinkingMode",
-    "ThinkingState",
 ]

@@ -1,9 +1,12 @@
+import pytest
+
 from qwen_think.types import (
     NON_THINKING_SAMPLING,
     THINKING_SAMPLING,
     Backend,
     Complexity,
     Message,
+    SamplingConfig,
     ThinkingMode,
 )
 
@@ -13,6 +16,7 @@ def test_backend_values():
     assert Backend.SGLANG.value == "sglang"
     assert Backend.DASHSCOPE.value == "dashscope"
     assert Backend.LLAMACPP.value == "llamacpp"
+    assert Backend.OPENAI.value == "openai"
 
 
 def test_thinking_mode_values():
@@ -20,9 +24,15 @@ def test_thinking_mode_values():
     assert ThinkingMode.NO_THINK.value == "no_think"
 
 
-def test_complexity_ordering():
+def test_complexity_values():
     assert Complexity.SIMPLE.value == "simple"
-    assert Complexity.AGENTIC.value == "agentic"
+    assert Complexity.MODERATE.value == "moderate"
+    assert Complexity.COMPLEX.value == "complex"
+
+
+def test_sampling_config_frozen():
+    with pytest.raises(AttributeError):
+        THINKING_SAMPLING.temperature = 999.0
 
 
 def test_sampling_config_to_dict():
@@ -35,6 +45,17 @@ def test_sampling_config_to_dict():
 def test_sampling_constants_differ():
     assert THINKING_SAMPLING.temperature != NON_THINKING_SAMPLING.temperature
     assert THINKING_SAMPLING.top_p != NON_THINKING_SAMPLING.top_p
+
+
+def test_sampling_config_hashable():
+    s = {THINKING_SAMPLING, NON_THINKING_SAMPLING}
+    assert len(s) == 2
+
+
+def test_custom_sampling_config():
+    cfg = SamplingConfig(temperature=0.5, top_p=0.9)
+    assert cfg.temperature == 0.5
+    assert cfg.top_k == 20  # default
 
 
 def test_message_openai_dict_plain():

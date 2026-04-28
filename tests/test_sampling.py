@@ -16,9 +16,9 @@ def test_get_params_non_thinking():
     assert p["top_p"] == 0.80
 
 
-def test_atomic_swap_changes_params():
+def test_swap_params_changes_values():
     sm = SamplingManager()
-    result = sm.atomic_swap(
+    result = sm.swap_params(
         ThinkingMode.THINK,
         ThinkingMode.NO_THINK,
         {"temperature": 1.0, "top_p": 0.95, "custom": 42},
@@ -28,10 +28,10 @@ def test_atomic_swap_changes_params():
     assert result["custom"] == 42
 
 
-def test_atomic_swap_noop_same_mode():
+def test_swap_params_noop_same_mode():
     sm = SamplingManager()
     original = {"temperature": 1.0}
-    result = sm.atomic_swap(ThinkingMode.THINK, ThinkingMode.THINK, original)
+    result = sm.swap_params(ThinkingMode.THINK, ThinkingMode.THINK, original)
     assert result is original
 
 
@@ -40,7 +40,20 @@ def test_validate_detects_mismatch():
     result = sm.validate_params(ThinkingMode.THINK, {"temperature": 0.5, "top_p": 0.95})
     assert result["valid"] is False
     assert "temperature" in result["mismatches"]
-    assert result["corrected"]["temperature"] == 1.0
+
+
+def test_validate_respects_user_values():
+    sm = SamplingManager()
+    result = sm.validate_params(ThinkingMode.THINK, {"temperature": 0.5})
+    # User set 0.5 — merged dict should keep that, not override to 1.0
+    assert result["merged"]["temperature"] == 0.5
+
+
+def test_validate_fills_missing_from_defaults():
+    sm = SamplingManager()
+    result = sm.validate_params(ThinkingMode.THINK, {"temperature": 1.0})
+    assert result["merged"]["top_p"] == 0.95
+    assert result["merged"]["top_k"] == 20
 
 
 def test_validate_passes_correct():

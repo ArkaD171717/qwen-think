@@ -14,10 +14,8 @@ class LlamaCppBackend(BaseBackend):
 
     backend = Backend.LLAMACPP
 
-    # URL patterns that suggest llama.cpp
     _LLAMACPP_PATTERNS = [
         r"llama",
-        r":8080",  # llama-server default port
     ]
 
     def __init__(self, server_enable_thinking: Optional[bool] = None) -> None:

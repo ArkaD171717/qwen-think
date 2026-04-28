@@ -30,10 +30,9 @@ class ThinkingMode(str, enum.Enum):
 class Complexity(str, enum.Enum):
     """Query complexity classification used by the router."""
 
-    SIMPLE = "simple"  # Single-turn, factual, short → NO_THINK
-    MODERATE = "moderate"  # Multi-sentence, some reasoning → THINK
-    COMPLEX = "complex"  # Multi-step, agentic, coding → THINK + preserve
-    AGENTIC = "agentic"  # Full agentic loop → THINK + preserve + budget
+    SIMPLE = "simple"
+    MODERATE = "moderate"
+    COMPLEX = "complex"
 
 
 class BudgetAction(str, enum.Enum):
@@ -45,7 +44,7 @@ class BudgetAction(str, enum.Enum):
     REFUSE = "refuse"  # Below minimum, refuse to continue
 
 
-@dataclass
+@dataclass(frozen=True)
 class SamplingConfig:
     """Sampling parameters that must stay in sync with the thinking mode."""
 
@@ -84,17 +83,6 @@ NON_THINKING_SAMPLING = SamplingConfig(
     presence_penalty=1.5,
     repetition_penalty=1.0,
 )
-
-
-@dataclass
-class ThinkingState:
-    """Snapshot of the current thinking state for a session turn."""
-
-    mode: ThinkingMode = ThinkingMode.THINK
-    preserve_thinking: bool = True
-    complexity: Complexity = Complexity.MODERATE
-    sampling: SamplingConfig = field(default_factory=lambda: THINKING_SAMPLING)
-    budget_action: BudgetAction = BudgetAction.OK
 
 
 @dataclass

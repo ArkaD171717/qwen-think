@@ -106,9 +106,7 @@ class RuleBasedClassifier:
         elif sentence_count > 2:
             complexity_score += 1
 
-        if complexity_score >= 5:
-            return Complexity.AGENTIC
-        elif complexity_score >= 3:
+        if complexity_score >= 3:
             return Complexity.COMPLEX
         elif complexity_score >= 0:
             return Complexity.MODERATE
@@ -123,13 +121,12 @@ class LLMClassifier:
 - SIMPLE: Single-turn, factual, short queries (e.g., "what is X?", "translate Y")
 - MODERATE: Multi-sentence queries requiring some reasoning
 - COMPLEX: Multi-step reasoning, coding tasks, debugging, refactoring
-- AGENTIC: Full multi-step agentic workflows with planning and execution
 
 Query: {query}
 
 Previous context length: {context_length}
 
-Respond with exactly one word: SIMPLE, MODERATE, COMPLEX, or AGENTIC"""
+Respond with exactly one word: SIMPLE, MODERATE, or COMPLEX"""
 
     def __init__(
         self,
@@ -142,7 +139,6 @@ Respond with exactly one word: SIMPLE, MODERATE, COMPLEX, or AGENTIC"""
         self.fallback = fallback or RuleBasedClassifier()
 
     def classify(self, query: str, context: Optional[List[str]] = None) -> Complexity:
-        """Classify using the LLM, falling back to rules on failure."""
         if self.client is None:
             return self.fallback.classify(query, context)
 
@@ -176,12 +172,10 @@ Respond with exactly one word: SIMPLE, MODERATE, COMPLEX, or AGENTIC"""
 class ComplexityRouter:
     """Routes queries to the appropriate thinking mode based on complexity."""
 
-    # Mapping from complexity to thinking mode and preservation
     COMPLEXITY_MAP = {
         Complexity.SIMPLE: (ThinkingMode.NO_THINK, False),
         Complexity.MODERATE: (ThinkingMode.THINK, False),
         Complexity.COMPLEX: (ThinkingMode.THINK, True),
-        Complexity.AGENTIC: (ThinkingMode.THINK, True),
     }
 
     def __init__(
@@ -195,7 +189,6 @@ class ComplexityRouter:
         self.force_thinking = force_thinking
 
     def classify(self, query: str, context: Optional[List[str]] = None) -> Complexity:
-        """Classify query complexity."""
         return self.classifier.classify(query, context)
 
     def route(
@@ -231,20 +224,6 @@ class ComplexityRouter:
             mode=mode,
             preserve_thinking=preserve,
             sampling=sampling,
-            confidence=self._estimate_confidence(query, complexity),
+            confidence=1.0,
             reasoning="; ".join(reasoning_parts),
         )
-
-    def _estimate_confidence(self, query: str, complexity: Complexity) -> float:
-        base_confidence = 0.7
-
-        if complexity in (Complexity.COMPLEX, Complexity.AGENTIC):
-            matches = sum(1 for p in _COMPLEX_RE if p.search(query))
-            confidence = min(1.0, base_confidence + matches * 0.05)
-        elif complexity == Complexity.SIMPLE:
-            matches = sum(1 for p in _SIMPLE_RE if p.search(query))
-            confidence = min(1.0, base_confidence + matches * 0.05)
-        else:
-            confidence = base_confidence
-
-        return round(confidence, 2)
