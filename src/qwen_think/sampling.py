@@ -1,7 +1,8 @@
-"""Atomic swap of sampling parameters when toggling thinking mode."""
+"""Sampling parameter management for thinking mode transitions."""
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional
 
 from .types import (
@@ -10,6 +11,8 @@ from .types import (
     SamplingConfig,
     ThinkingMode,
 )
+
+logger = logging.getLogger("qwen-think.sampling")
 
 
 class SamplingManager:
@@ -31,18 +34,17 @@ class SamplingManager:
     def get_params(self, mode: ThinkingMode) -> Dict[str, Any]:
         return self.get_config(mode).to_dict()
 
-    def atomic_swap(
+    def swap_params(
         self,
         current_mode: ThinkingMode,
         target_mode: ThinkingMode,
         current_params: Dict[str, Any],
     ) -> Dict[str, Any]:
         if current_mode == target_mode:
-            return current_params  # No swap needed
+            return current_params
 
         target_sampling = self.get_params(target_mode)
-        merged = {**current_params, **target_sampling}
-        return merged
+        return {**current_params, **target_sampling}
 
     def validate_params(
         self, mode: ThinkingMode, params: Dict[str, Any]
@@ -55,8 +57,20 @@ class SamplingManager:
             if actual_val is not None and actual_val != expected_val:
                 mismatches[key] = {"expected": expected_val, "actual": actual_val}
 
+        if mismatches:
+            logger.warning(
+                "Sampling params don't match %s mode defaults: %s. "
+                "User values will be kept.",
+                mode.value,
+                ", ".join(
+                    f"{k}={v['actual']} (expected {v['expected']})"
+                    for k, v in mismatches.items()
+                ),
+            )
+
         return {
             "valid": len(mismatches) == 0,
             "mismatches": mismatches,
-            "corrected": {**params, **expected},
+            # User values take precedence; defaults fill gaps only
+            "merged": {**expected, **params},
         }

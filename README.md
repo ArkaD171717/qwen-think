@@ -10,7 +10,7 @@ The canonical Python library for managing Qwen3.6's thinking state across sessio
 
 1. **Backend Normalization** — Qwen3.6's `enable_thinking` flag has three different invocation patterns across backends. This library normalizes them into a single API.
 
-2. **Atomic Sampling Swap** — Qwen3.6 requires *different* sampling parameters for thinking vs. non-thinking mode. A router that flips `enable_thinking` without also swapping params produces silently degraded output.
+2. **Sampling Parameter Swap** — Qwen3.6 requires *different* sampling parameters for thinking vs. non-thinking mode. A router that flips `enable_thinking` without also swapping params produces silently degraded output.
 
 3. **Context Budget Guard** — Qwen3.6 advises maintaining at least 128K tokens of context to preserve thinking capabilities. This library tracks and guards against silent degradation.
 
@@ -108,14 +108,13 @@ The router classifies query complexity and selects the appropriate mode:
 | SIMPLE | NO_THINK | No | "What is X?" |
 | MODERATE | THINK | No | Multi-sentence reasoning |
 | COMPLEX | THINK + preserve | Yes | Coding, debugging, refactoring |
-| AGENTIC | THINK + preserve + budget | Yes | Multi-step workflows |
 
 ```python
 from qwen_think import ComplexityRouter
 
 router = ComplexityRouter()
 decision = router.route("implement a REST API with authentication")
-# RouterDecision(complexity=COMPLEX, mode=THINK, preserve_thinking=True, ...)
+# RouterDecision(complexity=COMPLEX, mode=THINK, preserve_thinking=True)
 ```
 
 ## API Reference

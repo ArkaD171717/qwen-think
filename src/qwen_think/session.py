@@ -22,6 +22,21 @@ from .types import (
 
 logger = logging.getLogger("qwen-think")
 
+# Params the OpenAI client accepts as top-level kwargs to create().
+# Everything else must go in extra_body for vLLM/SGLang.
+_OPENAI_TOP_LEVEL = {
+    "temperature",
+    "top_p",
+    "presence_penalty",
+    "frequency_penalty",
+    "stop",
+    "n",
+    "seed",
+    "logprobs",
+    "top_logprobs",
+    "logit_bias",
+}
+
 
 class ThinkingSession:
     """Manages Qwen3.6 thinking state across a conversation session."""
@@ -44,24 +59,29 @@ class ThinkingSession:
         self.auto_route = auto_route
         self.force_thinking = force_thinking
 
-        # Resolve backend
         if backend is not None:
             if isinstance(backend, str):
                 backend = Backend(backend)
             self._backend_instance: BaseBackend = get_backend(backend)
         else:
-            # Auto-detect from client base_url
             base_url = getattr(client, "base_url", None)
             if base_url:
-                self._backend_instance = detect_backend(str(base_url))
-                logger.info(
-                    "Auto-detected backend: %s", self._backend_instance.backend.value
-                )
+                try:
+                    self._backend_instance = detect_backend(str(base_url))
+                    logger.info(
+                        "Auto-detected backend: %s",
+                        self._backend_instance.backend.value,
+                    )
+                except ValueError:
+                    self._backend_instance = VLLMBackend()
+                    logger.warning(
+                        "Could not auto-detect backend for %s, defaulting to vLLM",
+                        base_url,
+                    )
             else:
                 self._backend_instance = VLLMBackend()
-                logger.warning("Could not auto-detect backend, defaulting to vLLM")
+                logger.warning("No base_url on client, defaulting to vLLM")
 
-        # Initialize sub-managers
         self.budget_manager = BudgetManager(
             total_budget=budget,
             min_context=min_context,
@@ -75,22 +95,18 @@ class ThinkingSession:
 
     @property
     def backend(self) -> Backend:
-        """The currently active backend type."""
         return self._backend_instance.backend
 
     @property
     def messages(self) -> List[Message]:
-        """The conversation history."""
         return list(self._messages)
 
     @property
     def thinking_mode(self) -> ThinkingMode:
-        """The current thinking mode."""
         return self._thinking_mode
 
     @property
     def budget_status(self) -> BudgetStatus:
-        """Current context budget status."""
         return self.budget_manager.check_budget(self._messages)
 
     def chat(
@@ -105,13 +121,12 @@ class ThinkingSession:
         stream: bool = False,
         **kwargs: Any,
     ) -> Any:
-        """Send a message with automatic thinking state management."""
         budget_status = self.budget_manager.check_budget(self._messages)
         if budget_status.action == BudgetAction.REFUSE:
             raise RuntimeError(f"Context budget exhausted: {budget_status.message}")
         if budget_status.action == BudgetAction.COMPRESS:
-            logger.warning("Auto-compressing conversation: %s", budget_status.message)
-            self._messages = self.budget_manager.compress(self._messages)
+            logger.warning("Trimming conversation: %s", budget_status.message)
+            self._messages = self.budget_manager.trim(self._messages)
 
         if mode is not None:
             self._thinking_mode = mode
@@ -178,7 +193,12 @@ class ThinkingSession:
 
         response = self.client.chat.completions.create(**api_params)
 
-        if not stream:
+        if stream:
+            logger.debug(
+                "Streaming response — call add_message() after consuming "
+                "the stream to keep history in sync."
+            )
+        else:
             self._store_response(response, decision)
 
         return response
@@ -218,8 +238,8 @@ class ThinkingSession:
         else:
             self._messages = []
 
-    def compress_history(self, keep_recent: int = 4) -> BudgetStatus:
-        self._messages = self.budget_manager.compress(self._messages, keep_recent)
+    def trim_history(self, keep_recent: int = 4) -> BudgetStatus:
+        self._messages = self.budget_manager.trim(self._messages, keep_recent)
         return self.budget_manager.check_budget(self._messages)
 
     def get_openai_messages(
@@ -247,11 +267,11 @@ class ThinkingSession:
         for msg in self._messages:
             api_messages.append(msg.to_openai_dict(include_thinking=include_thinking))
 
-        # OpenAI client accepts these top-level; everything else goes in extra_body
-        OPENAI_PARAMS = {"temperature", "top_p", "presence_penalty"}
-        top_level = {k: v for k, v in payload.sampling.items() if k in OPENAI_PARAMS}
+        top_level = {
+            k: v for k, v in payload.sampling.items() if k in _OPENAI_TOP_LEVEL
+        }
         extra_sampling = {
-            k: v for k, v in payload.sampling.items() if k not in OPENAI_PARAMS
+            k: v for k, v in payload.sampling.items() if k not in _OPENAI_TOP_LEVEL
         }
 
         extra_body = {**payload.extra_body, **extra_sampling}

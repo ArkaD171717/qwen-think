@@ -98,3 +98,12 @@ class SGLangBackend(VLLMBackend):
         r"sglang",
         r":30000",  # SGLang default port
     ]
+
+
+class OpenAIBackend(VLLMBackend):
+    """Generic OpenAI-compatible servers. Same payload shape as vLLM."""
+
+    backend = Backend.OPENAI
+
+    def detect(self, base_url: Optional[str] = None) -> float:
+        return 0.0

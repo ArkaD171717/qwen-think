@@ -3,11 +3,12 @@ import pytest
 from qwen_think.backends import (
     DashScopeBackend,
     LlamaCppBackend,
+    OpenAIBackend,
     VLLMBackend,
     detect_backend,
 )
 from qwen_think.backends.vllm import SGLangBackend
-from qwen_think.types import ThinkingMode
+from qwen_think.types import Backend, ThinkingMode
 
 
 class TestVLLMBackend:
@@ -19,7 +20,6 @@ class TestVLLMBackend:
         assert p.extra_body["chat_template_kwargs"]["enable_thinking"] is True
 
     def test_no_think_explicitly_sets_false(self):
-        """Verifies fix for vLLM semantic-router bug #858."""
         p = self.b.build_payload(ThinkingMode.NO_THINK, preserve_thinking=False)
         ctk = p.extra_body["chat_template_kwargs"]
         assert "enable_thinking" in ctk
@@ -38,6 +38,25 @@ class TestVLLMBackend:
 
     def test_detect_port_8000(self):
         assert self.b.detect("http://localhost:8000/v1") > 0
+
+    def test_detect_v1_low_confidence(self):
+        score = self.b.detect("http://some-server:9000/v1")
+        assert 0 < score < 0.5
+
+
+class TestOpenAIBackend:
+    def test_reports_openai_backend(self):
+        b = OpenAIBackend()
+        assert b.backend == Backend.OPENAI
+
+    def test_same_payload_as_vllm(self):
+        b = OpenAIBackend()
+        p = b.build_payload(ThinkingMode.THINK)
+        assert "chat_template_kwargs" in p.extra_body
+
+    def test_never_autodetected(self):
+        b = OpenAIBackend()
+        assert b.detect("http://api.openai.com/v1") == 0.0
 
 
 class TestDashScopeBackend:
@@ -77,12 +96,24 @@ class TestLlamaCppBackend:
         cmd = LlamaCppBackend.get_startup_command(enable_thinking=True)
         assert "--reasoning-budget 0" not in cmd
 
+    def test_does_not_match_generic_8080(self):
+        b = LlamaCppBackend()
+        assert b.detect("http://localhost:8080/v1") == 0.0
+
+    def test_matches_llama_in_url(self):
+        b = LlamaCppBackend()
+        assert b.detect("http://llama-server:8080/v1") > 0
+
 
 class TestSGLangBackend:
     def test_same_format_as_vllm(self):
         b = SGLangBackend()
         p = b.build_payload(ThinkingMode.NO_THINK)
         assert p.extra_body["chat_template_kwargs"]["enable_thinking"] is False
+
+    def test_reports_sglang_backend(self):
+        b = SGLangBackend()
+        assert b.backend == Backend.SGLANG
 
 
 class TestAutoDetection:
@@ -92,9 +123,13 @@ class TestAutoDetection:
             ("http://localhost:8000/v1", "vllm"),
             ("http://localhost:30000/v1", "sglang"),
             ("https://dashscope.aliyuncs.com/v1", "dashscope"),
-            ("http://localhost:8080/v1", "llamacpp"),
+            ("http://llama-server:8080/v1", "llamacpp"),
         ],
     )
     def test_detect_backend(self, url, expected):
         b = detect_backend(url)
         assert b.backend.value == expected
+
+    def test_unknown_url_raises(self):
+        with pytest.raises(ValueError, match="Could not auto-detect"):
+            detect_backend("http://totally-unknown:9999/api")
